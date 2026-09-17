@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حاسبة كتلة الجسم | BMI</title>
+<style>
+:root{
+  --bg:#f6f6f7; --card:#ffffff; --text:#1a1a1a; --muted:#6b7280; --border:#e3e5e8;
+  --danger:#dc2626; --warning:#d97706; --positive:#16a34a; --accent:#2563eb;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#17181a; --card:#202124; --text:#ececec; --muted:#9aa0a6; --border:#33363a;
+         --danger:#f87171; --warning:#fbbf24; --positive:#4ade80; --accent:#60a5fa; }
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif}
+body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.wrap{width:100%;max-width:520px}
+header{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+header .dot{width:14px;height:14px;border-radius:50%;background:var(--text)}
+h1{font-size:20px;font-weight:600}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+input{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:16px;background:transparent;color:var(--text);transition:border-color .2s}
+input:focus{outline:none;border-color:var(--text)}
+input.err{border-color:var(--danger);animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+button{background:var(--text);color:var(--bg);border:none;border-radius:10px;padding:12px 0;width:100%;font-size:16px;font-weight:600;cursor:pointer;transition:opacity .2s}
+button:hover{opacity:.85}
+.result{display:none;animation:pop .5s ease}
+@keyframes pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.row{display:flex;align-items:center;gap:16px}
+.bmi{font-size:44px;font-weight:700;line-height:1.1}
+.unit{font-size:14px;color:var(--muted)}
+.chip{display:inline-block;border-radius:6px;padding:3px 14px;font-size:14px;font-weight:600;margin-top:8px}
+.gauge{width:100%;display:block}
+.range{text-align:center;font-size:14px;color:var(--muted);margin-top:8px}
+.note{margin-top:4px}
+.note b{font-size:15px}
+.note p{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.7}
+footer{text-align:center;font-size:12px;color:var(--muted);margin-top:16px}
+.fig rect{transition:x .7s ease,width .7s ease,rx .7s ease}
+@media (max-width:420px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><span class="dot"></span><h1>حاسبة كتلة الجسم (BMI)</h1></header>
+
+  <div class="card">
+    <div class="grid">
+      <div><label>الطول (سم)</label><input id="h" type="number" placeholder="مثال: 175" min="100" max="230"></div>
+      <div><label>الوزن (كجم)</label><input id="w" type="number" placeholder="مثال: 72" min="20" max="250"></div>
+      <div><label>العمر (سنة)</label><input id="a" type="number" placeholder="مثال: 28" min="2" max="120"></div>
+    </div>
+    <button id="calc">احسب النتيجة</button>
+  </div>
+
+  <div class="card result" id="res">
+    <div class="row">
+      <svg class="fig" width="72" height="100" viewBox="0 0 120 140" fill="none">
+        <ellipse cx="60" cy="130" rx="34" ry="6" fill="var(--border)"/>
+        <circle cx="60" cy="26" r="14" fill="var(--border)"/>
+        <rect id="figb" x="41" y="48" width="38" height="78" rx="19" fill="var(--border)"/>
+      </svg>
+      <div>
+        <label>مؤشر كتلة جسمك</label>
+        <div><span class="bmi" id="bmiVal">—</span> <span class="unit">kg/m²</span></div>
+        <span class="chip" id="chip">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card result" id="res2">
+    <svg id="gauge" class="gauge" viewBox="0 0 240 140" fill="none">
+      <g id="segs"></g><g id="ticks"></g>
+      <g id="needleG" style="transform-box:view-box;transform-origin:120px 116px;transition:transform .7s ease">
+        <line x1="120" y1="116" x2="120" y2="34" stroke="var(--text)" stroke-width="2.5" stroke-linecap="round"/>
+      </g>
+      <circle cx="120" cy="116" r="5" fill="var(--text)"/>
+    </svg>
+    <div class="range" id="rangeLine">—</div>
+  </div>
+
+  <div class="card result note" id="res3">
+    <b id="verdict">—</b>
+    <p id="note"></p>
+  </div>
+
+  <footer>القياس مبني على معايير منظمة الصحة العالمية للبالغين</footer>
+</div>
+
+<script>
+var CX=120, CY=116, R=100, V0=12, V1=44;
+function ang(v){return 180*(V1-v)/(V1-V0)}
+function pt(r,a){var t=a*Math.PI/180;return [CX+r*Math.cos(t), CY-r*Math.sin(t)]}
+function arc(v1,v2){var p1=pt(R,ang(v1)),p2=pt(R,ang(v2));
+  return 'M '+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+' A 100 100 0 0 1 '+p2[0].toFixed(1)+' '+p2[1].toFixed(1)}
+
+var segs=[
+  {a:12,b:16,c:'var(--danger)',o:1,lab:'نحيف جداً'},
+  {a:16,b:18.5,c:'var(--warning)',o:1,lab:'نحيف زيادة'},
+  {a:18.5,b:25,c:'var(--positive)',o:1,lab:'طبيعي'},
+  {a:25,b:30,c:'var(--accent)',o:1,lab:'زيادة وزن'},
+  {a:30,b:40,c:'var(--danger)',o:.6,lab:'سمنة'},
+  {a:40,b:44,c:'var(--danger)',o:1,lab:'خطر جداً'}
+];
+var NS='http://www.w3.org/2000/svg';
+segs.forEach(function(s){
+  var p=document.createElementNS(NS,'path');
+  p.setAttribute('d',arc(s.a,s.b)); p.setAttribute('stroke',s.c);
+  p.setAttribute('stroke-width','12'); p.setAttribute('opacity',s.o);
+  document.getElementById('segs').appendChild(p);
+  var q=pt(74,ang((s.a+s.b)/2));
+  var t=document.createElementNS(NS,'text');
+  t.setAttribute('x',q[0]); t.setAttribute('y',q[1]+3);
+  t.setAttribute('text-anchor','middle');
+  t.setAttribute('style','font-size:8.5px;fill:var(--muted)');
+  t.textContent=s.lab;
+  document.getElementById('ticks').appendChild(t);
+});
+
+function cat(bmi){
+  if(bmi<16)  return {t:'خطر جدًا — نقص حاد في الوزن',c:'var(--danger)',bg:'rgba(220,38,38,.12)',v:'جسمك محتاج دعم فوري: أكل منتظم غني بالبروتين، وكشف عند دكتور يتابع معاك. الرقم ده مش للاستهانة بيه.',r:'زوّد وزنك تدريجيًا بالتغذية السليمة'};
+  if(bmi<18.5)return {t:'نحيف زيادة عن الطبيعي',c:'var(--warning)',bg:'rgba(217,119,6,.14)',v:'رشيق أوي! محتاج تزوّد بروتين وكربوهيدرات صحية عشان توصل للوزن المثالي.',r:'زوّد سعراتك بوجبات مغذية ورياضة بناء عضل'};
+  if(bmi<25)  return {t:'طبيعي — وزنك مثالي',c:'var(--positive)',bg:'rgba(22,163,74,.12)',v:'مية مية! وزنك في النطاق الصحي. كمّل أكل متوازن وحركة يومية عشان تحافظ عليه.',r:'حافظ على أسلوب حياتك الحالي — أنت قدوة'};
+  if(bmi<30)  return {t:'زيادة وزن (سمنة خفيفة)',c:'var(--accent)',bg:'rgba(37,99,235,.12)',v:'الفرق عن الوزن المثالي بسيط — مشوار يومي ساعة وتقليل السكريات هيرجّعك للنطاق الطبيعي بسرعة.',r:'حرق 300–500 سعر إضافي يوميًا وظبطها في شهور'};
+  if(bmi<40)  return {t:'سمنة — خطر على الصحة',c:'var(--danger)',bg:'rgba(220,38,38,.12)',v:'السمنة دي بتضغط على القلب والمفاصل والسكر. نظام غذائي ثابت مع متابعة طبية هو الحل الصح.',r:'ابدأ نظام غذائي متوازن ورياضة منتظمة تحت إشراف مختص'};
+  return {t:'خطر جدًا — سمنة مفرطة',c:'var(--danger)',bg:'rgba(220,38,38,.16)',v:'الخطر هنا حقيقي ومش مجرد رقم. لازم متابعة طبية فورية — أخصائي تغذية وممكن جراحة السمنة كخيار طبي.',r:'احجز كشف عند طبيب أو أخصائي تغذية في أقرب وقت'};
+}
+
+document.getElementById('calc').addEventListener('click',function(){
+  var h=parseFloat(document.getElementById('h').value),
+      w=parseFloat(document.getElementById('w').value),
+      a=parseFloat(document.getElementById('a').value);
+  var ok=true;
+  [['h',100,230],['w',20,250],['a',2,120]].forEach(function(f){
+    var el=document.getElementById(f[0]), v=parseFloat(el.value);
+    el.classList.remove('err'); void el.offsetWidth;
+    if(!v||v<f[1]||v>f[2]){el.classList.add('err');ok=false}
+  });
+  if(!ok) return;
+
+  var bmi=w/((h/100)*(h/100)), k=cat(bmi);
+  document.getElementById('bmiVal').textContent=bmi.toFixed(1);
+  var chip=document.getElementById('chip');
+  chip.textContent=k.t; chip.style.color=k.c; chip.style.background=k.bg;
+  document.getElementById('verdict').textContent=k.v;
+  var note='الوزن المثالي لطولك بين '+(18.5*Math.pow(h/100,2)).toFixed(1)+' و '+(24.9*Math.pow(h/100,2)).toFixed(1)+' كجم — '+k.r+'.';
+  if(a<20) note+=' ملحوظة: تصنيف BMI الرسمي للبالغين من 20 سنة فأكثر؛ للأطفال والمراهقين التقييم الدقيق بيتم بمنحنيات العمر والجنس عند الطبيب.';
+  note+=' BMI مؤشر عام ولا يفرّق بين العضل والدهون.';
+  document.getElementById('note').textContent=note;
+  document.getElementById('rangeLine').textContent='إبرتك على المقياس ← '+bmi.toFixed(1);
+  document.getElementById('needleG').style.transform='rotate('+(90-ang(bmi))+'deg)';
+  var bw=Math.max(16,Math.min(46,16+(bmi-V0)/(V1-V0)*30));
+  var fb=document.getElementById('figb');
+  fb.style.width=bw+'px'; fb.setAttribute('x',60-bw/2); fb.setAttribute('rx',bw/2);
+  ['res','res2','res3'].forEach(function(id){document.getElementById(id).style.display='block'});
+});
+document.addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('calc').click()});
+</script>
+</body>
+</html>
